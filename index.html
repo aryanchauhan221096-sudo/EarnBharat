@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>EarnBharat</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* Custom keyframes for more complex animations */
+      @keyframes open-box-top {
+        0% { transform: translateY(0); }
+        100% { transform: translateY(-100%); }
+      }
+      @keyframes open-box-bottom {
+        0% { transform: translateY(0); }
+        100% { transform: translateY(100%); }
+      }
+      @keyframes logo-zoom {
+        0% { transform: scale(0.5); opacity: 0; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+      @keyframes coin-burst {
+        0% { transform: scale(0.5) translateY(0); opacity: 1; }
+        100% { transform: scale(1) translateY(-150px); opacity: 0; }
+      }
+      @keyframes fade-in {
+        0% { opacity: 0; transform: translateY(20px); }
+        100% { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes fade-scale-in {
+        0% { opacity: 0; transform: scale(0.95) translateY(10px); }
+        100% { opacity: 1; transform: scale(1) translateY(0); }
+      }
+      @keyframes slide-in-bottom {
+        0% {
+          transform: translateY(20px);
+          opacity: 0;
+        }
+        100% {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+
+      .animate-open-box-top {
+        animation: open-box-top 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+      }
+      .animate-open-box-bottom {
+        animation: open-box-bottom 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+      }
+      .animate-logo-zoom {
+        animation: logo-zoom 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+      }
+      .animate-coin-burst {
+        animation: coin-burst 0.7s ease-out forwards;
+      }
+      .animate-text-fade-in {
+        animation: fade-in 0.8s ease-out forwards;
+      }
+      .animate-fade-scale-in {
+        animation: fade-scale-in 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+      }
+      .animate-slide-in-bottom {
+        animation: slide-in-bottom 0.5s cubic-bezier(0.250, 0.460, 0.450, 0.940) both;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "firebase/app": "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js",
+    "firebase/auth": "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js",
+    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
