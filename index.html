@@ -42,6 +42,50 @@
           opacity: 1;
         }
       }
+      @keyframes fly-to-target {
+        0% {
+          transform: translate(var(--start-x), var(--start-y)) scale(1);
+          opacity: 1;
+        }
+        100% {
+          transform: translate(var(--end-x), var(--end-y)) scale(0.3);
+          opacity: 0;
+        }
+      }
+      @keyframes jackpot-zoom-in-out {
+        0% { transform: scale(0.5) rotate(-15deg); opacity: 0; }
+        20% { transform: scale(1.2) rotate(5deg); opacity: 1; }
+        40% { transform: scale(1) rotate(-5deg); opacity: 1; }
+        80% { transform: scale(1.1) rotate(0deg); opacity: 1; }
+        100% { transform: scale(2.5); opacity: 0; }
+      }
+
+      @keyframes confetti-fall {
+        0% { transform: translateY(-10vh) rotateZ(0deg); opacity: 1; }
+        100% { transform: translateY(110vh) rotateZ(720deg); opacity: 0; }
+      }
+
+      .animate-jackpot-text {
+        animation: jackpot-zoom-in-out 4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      }
+
+      .confetti {
+        position: fixed;
+        width: 10px;
+        height: 10px;
+        top: -20px;
+        opacity: 0;
+        animation: confetti-fall 3s linear infinite;
+      }
+
+      .animate-coin-fly {
+        position: fixed;
+        left: 0;
+        top: 0;
+        z-index: 50;
+        animation: fly-to-target 1s cubic-bezier(0.5, 0, 1, 0.5) forwards;
+        pointer-events: none;
+      }
 
       .animate-open-box-top {
         animation: open-box-top 0.8s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
@@ -71,9 +115,9 @@
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
     "react": "https://aistudiocdn.com/react@^19.2.0",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "firebase/app": "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js",
-    "firebase/auth": "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js",
-    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js",
+    "firebase/compat/app": "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js",
+    "firebase/compat/auth": "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js",
+    "firebase/compat/firestore": "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js",
     "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
   }
 }
@@ -81,6 +125,8 @@
 </head>
   <body>
     <div id="root"></div>
+    <!-- Global container for Firebase reCAPTCHA. It must be outside the React root. -->
+    <div id="recaptcha-container-global"></div>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>

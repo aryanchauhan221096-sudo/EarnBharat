@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 export const ReferralIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (

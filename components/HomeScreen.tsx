@@ -1,4 +1,6 @@
-import React, { useState, useEffect } from 'react';
+
+
+import React, { useState, useEffect, useRef } from 'react';
 import { EarnBharatLogo } from './icons/EarnBharatLogo';
 import { NotificationIcon } from './icons/NotificationIcon';
 import { CoinIcon } from './icons/CoinIcon';
@@ -16,6 +18,11 @@ import { HomeIcon } from './icons/HomeIcon';
 import { WalletIcon } from './icons/WalletIcon';
 import { UserIcon } from './icons/UserIcon';
 import { User, Screen } from '../App';
+import { addCoins } from '../managers/CoinManager';
+import { TicketIcon } from './icons/TicketIcon';
+import { VideoWallIcon } from './icons/VideoWallIcon';
+// FIX: The 'doc' and 'onSnapshot' functions are called directly on the db instance in v8.
+import { db } from '../firebase';
 
 
 interface HomeScreenProps {
@@ -23,12 +30,12 @@ interface HomeScreenProps {
   onNavigate: (screen: Screen) => void;
 }
 
-const TaskCard: React.FC<{ icon: React.ReactNode; title: string; }> = ({ icon, title }) => (
-    <div className="bg-gradient-to-br from-[#FF8A3B] to-[#FFD700] p-4 rounded-2xl shadow-lg text-center text-white flex flex-col items-center justify-center aspect-square transition-transform duration-200 hover:scale-105 active:scale-95 cursor-pointer">
+const TaskCard = React.forwardRef<HTMLDivElement, { icon: React.ReactNode; title: string; onClick?: (event: React.MouseEvent<HTMLDivElement>) => void; }>(({ icon, title, onClick }, ref) => (
+    <div ref={ref} onClick={onClick} className="bg-gradient-to-br from-[#FF8A3B] to-[#FFD700] p-4 rounded-2xl shadow-lg text-center text-white flex flex-col items-center justify-center aspect-square transition-transform duration-200 hover:scale-105 active:scale-95 cursor-pointer">
         <div className="mb-2">{icon}</div>
         <h3 className="font-bold text-sm md:text-base">{title}</h3>
     </div>
-);
+));
 
 const HighlightCard: React.FC<{ icon: React.ReactNode; value: string; label: string; }> = ({ icon, value, label }) => (
     <div className="bg-white p-3 rounded-xl shadow flex items-center space-x-3">
@@ -42,29 +49,132 @@ const HighlightCard: React.FC<{ icon: React.ReactNode; value: string; label: str
     </div>
 );
 
+interface FlyingCoin {
+    id: number;
+    style: React.CSSProperties;
+}
+
+// Helper function to get date in YYYY-MM-DD format
+const getTodayDateString = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ user, onNavigate }) => {
     const [animateCard, setAnimateCard] = useState(false);
+    const [flyingCoins, setFlyingCoins] = useState<FlyingCoin[]>([]);
+    const [todaysEarnings, setTodaysEarnings] = useState(0);
+    const balanceRef = useRef<HTMLDivElement>(null);
+    const spinWinCardRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        // Trigger animation shortly after component mounts
-        const timer = setTimeout(() => setAnimateCard(true), 100);
-        return () => clearTimeout(timer);
-    }, []);
-
-    // Firebase Placeholder Values
+    // Placeholder for features not yet connected to backend
     const placeholder = {
-        userID: 'EB123456',
-        walletCoins: 12500,
-        walletMoney: '125.00',
-        todaysEarnings: 150,
-        totalCoins: 85000,
         userRank: '#25',
         levelProgress: 75
     };
 
+    const startCoinAnimation = (sourceElement: HTMLElement) => {
+        const rect = sourceElement.getBoundingClientRect();
+        const balanceEl = balanceRef.current;
+        if (!balanceEl) return;
+  
+        const balanceRect = balanceEl.getBoundingClientRect();
+        const endX = balanceRect.left + balanceRect.width / 2;
+        const endY = balanceRect.top + balanceRect.height / 2;
+  
+        const startX = rect.left + rect.width / 2;
+        const startY = rect.top + rect.height / 2;
+  
+        const newCoins: FlyingCoin[] = Array.from({ length: 7 }).map((_, i) => {
+          const id = Date.now() + i;
+          const randomOffsetX = (Math.random() - 0.5) * 40;
+          const randomOffsetY = (Math.random() - 0.5) * 40;
+  
+          // FIX: Cast style object to React.CSSProperties to allow for CSS custom properties (variables)
+          // which are not in the default TypeScript definition.
+          const style = {
+            '--start-x': `${startX + randomOffsetX}px`,
+            '--start-y': `${startY + randomOffsetY}px`,
+            '--end-x': `${endX}px`,
+            '--end-y': `${endY}px`,
+            animationDelay: `${i * 80}ms`,
+          } as React.CSSProperties;
+          return { id, style };
+        });
+  
+        setFlyingCoins(prev => [...prev, ...newCoins]);
+  
+        setTimeout(() => {
+          setFlyingCoins(prev => prev.filter(c => !newCoins.some(nc => nc.id === c.id)));
+        }, 2000);
+    };
+
+    const triggerCoinAnimation = (event: React.MouseEvent<HTMLDivElement>) => {
+        startCoinAnimation(event.currentTarget);
+    };
+
+    useEffect(() => {
+        // Trigger main card animation shortly after component mounts
+        const timer = setTimeout(() => setAnimateCard(true), 100);
+
+        // Check for spin win reward on mount
+        const spinWinReward = sessionStorage.getItem('spin_win_reward');
+        if (spinWinReward) {
+            if (parseInt(spinWinReward, 10) > 0) {
+                // A short delay to ensure the UI is ready for the animation
+                setTimeout(() => {
+                    if (spinWinCardRef.current) {
+                        startCoinAnimation(spinWinCardRef.current);
+                    }
+                }, 300);
+            }
+            sessionStorage.removeItem('spin_win_reward');
+        }
+
+        // New: Listener for today's earnings
+        const todayDateString = getTodayDateString();
+        // FIX: Use Firebase v8 syntax to reference a document.
+        const dailyEarningsDocRef = db.collection('users').doc(user.uid).collection('dailyEarnings').doc(todayDateString);
+        
+        // FIX: Use Firebase v8 syntax for onSnapshot.
+        const unsubscribe = dailyEarningsDocRef.onSnapshot((docSnapshot) => {
+            if (docSnapshot.exists) {
+                setTodaysEarnings(docSnapshot.data()?.coinsEarned || 0);
+            } else {
+                setTodaysEarnings(0); // If document doesn't exist, earnings are 0
+            }
+        });
+
+        return () => {
+            clearTimeout(timer);
+            unsubscribe(); // Clean up the listener
+        };
+    }, [user.uid]);
+
+    const handleDailyCheckIn = async (event: React.MouseEvent<HTMLDivElement>) => {
+        const result = await addCoins(user.uid, 10, 'Daily Check-In Reward');
+        if (result.success) {
+            triggerCoinAnimation(event);
+        } else {
+            alert(`Failed to add coins: ${result.message}`);
+        }
+    };
+    
+    const displayUserId = `EB${user.uid.substring(0, 6).toUpperCase()}`;
+
     return (
     <div className="min-h-screen bg-[#F5F5F5] font-sans pb-24">
+      {/* Flying Coins Container */}
+      {flyingCoins.map(coin => (
+        <div key={coin.id} style={coin.style} className="animate-coin-fly">
+            <CoinIcon className="w-6 h-6" />
+        </div>
+      ))}
+      
       {/* Header */}
       <header className="bg-white sticky top-0 z-30 shadow-sm">
         <div className="container mx-auto px-4 py-3 flex justify-between items-center">
@@ -87,18 +197,18 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ user, onNavigate }) => {
         {/* User Card */}
         <section className={`bg-white p-5 rounded-2xl shadow-lg mb-6 transform transition-all duration-500 ${animateCard ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4'}`}>
             <div className="flex items-center mb-4">
-                <img src={`https://i.pravatar.cc/150?u=${placeholder.userID}`} alt="Profile" className="w-16 h-16 rounded-full mr-4 border-2 border-amber-300" />
+                <img src={`https://i.pravatar.cc/150?u=${user.uid}`} alt="Profile" className="w-16 h-16 rounded-full mr-4 border-2 border-amber-300" />
                 <div>
                     <h2 className="text-xl font-bold text-gray-800">{user.name}</h2>
-                    <p className="text-sm text-gray-500">User ID: {placeholder.userID}</p>
+                    <p className="text-sm text-gray-500">User ID: {displayUserId}</p>
                 </div>
             </div>
-            <div className="flex justify-between items-center bg-gray-50 p-4 rounded-xl">
+            <div ref={balanceRef} className="flex justify-between items-center bg-gray-50 p-4 rounded-xl">
                 <div>
                     <p className="text-sm text-gray-500">Wallet Balance</p>
-                    <p className="text-2xl font-bold text-[#1B1B1B]">₹{placeholder.walletMoney} <span className="text-base font-medium text-gray-600">({placeholder.walletCoins} Coins)</span></p>
+                    <p className="text-2xl font-bold text-[#1B1B1B]">₹{user.money.toFixed(2)} <span className="text-base font-medium text-gray-600">({user.coins.toLocaleString()} Coins)</span></p>
                 </div>
-                <button className="bg-[#FF6B00] text-white font-bold py-3 px-6 rounded-full shadow-md hover:bg-orange-600 transition-all duration-200 transform hover:scale-105">
+                <button onClick={() => onNavigate('Wallet')} className="bg-[#FF6B00] text-white font-bold py-3 px-6 rounded-full shadow-md hover:bg-orange-600 transition-all duration-200 transform hover:scale-105">
                     Withdraw
                 </button>
             </div>
@@ -106,21 +216,31 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ user, onNavigate }) => {
 
         {/* Earning Task Grid */}
         <section className="grid grid-cols-4 gap-3 md:gap-4 mb-6">
-            <TaskCard icon={<PlayIcon className="w-8 h-8 md:w-10 md:h-10" />} title="Watch & Earn" />
-            <TaskCard icon={<CalendarIcon className="w-8 h-8 md:w-10 md:h-10" />} title="Daily Check-In" />
+            <TaskCard icon={<PlayIcon className="w-8 h-8 md:w-10 md:h-10" />} title="Watch & Earn" onClick={() => onNavigate('WatchAndEarn')} />
+            <TaskCard icon={<CalendarIcon className="w-8 h-8 md:w-10 md:h-10" />} title="Daily Check-In" onClick={handleDailyCheckIn} />
             <TaskCard icon={<ScratchIcon className="w-8 h-8 md:w-10 md:h-10" />} title="Scratch Card" />
-            <TaskCard icon={<SpinWheelIcon className="w-8 h-8 md:w-10 md:h-10" />} title="Spin & Win" />
+            <TaskCard ref={spinWinCardRef} icon={<SpinWheelIcon className="w-8 h-8 md:w-10 md:h-10" />} title="Spin & Win" onClick={() => onNavigate('SpinAndWin')} />
             <TaskCard icon={<TasksIcon className="w-8 h-8 md:w-10 md:h-10" />} title="Tasks & Offers" />
             <TaskCard icon={<ReferralIcon className="w-8 h-8 md:w-10 md:h-10" />} title="Referral Program" />
             <TaskCard icon={<QuizIcon className="w-8 h-8 md:w-10 md:h-10" />} title="Quiz & Games" />
             <TaskCard icon={<MysteryBoxIcon className="w-8 h-8 md:w-10 md:h-10" />} title="Mystery Box" />
         </section>
 
+        {/* Earn More Section */}
+        <section className="mb-6">
+            <h2 className="text-lg font-bold text-gray-800 mb-3">Earn More</h2>
+            <div className="grid grid-cols-3 gap-3 md:gap-4">
+                <TaskCard icon={<QuizIcon className="w-8 h-8 md:w-10 md:h-10" />} title="Daily Quiz" />
+                <TaskCard icon={<TicketIcon className="w-8 h-8 md:w-10 md:h-10" />} title="Lucky Draw" />
+                <TaskCard icon={<VideoWallIcon className="w-8 h-8 md:w-10 md:h-10" />} title="Video Wall" />
+            </div>
+        </section>
+
         {/* Highlights Section */}
         <section>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-4">
-                <HighlightCard icon={<CoinIcon className="w-6 h-6" />} value={placeholder.todaysEarnings.toString()} label="Today's Earnings" />
-                <HighlightCard icon={<TrophyIcon className="w-6 h-6" />} value={placeholder.totalCoins.toString()} label="Total Coins Earned" />
+                <HighlightCard icon={<CoinIcon className="w-6 h-6" />} value={`₹${(todaysEarnings / 10).toFixed(2)}`} label="Today's Earnings" />
+                <HighlightCard icon={<TrophyIcon className="w-6 h-6" />} value={user.totalEarnings.toLocaleString()} label="Total Coins Earned" />
                 <HighlightCard icon={<LeaderboardIcon className="w-6 h-6" />} value={placeholder.userRank} label="User Rank" />
             </div>
             <div className="bg-white p-4 rounded-xl shadow">

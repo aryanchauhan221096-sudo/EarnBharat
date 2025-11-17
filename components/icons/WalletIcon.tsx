@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 export const WalletIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (

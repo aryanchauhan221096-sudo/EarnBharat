@@ -1,22 +1,20 @@
+
+
 import React, { useState, useEffect } from 'react';
 import { GoogleIcon } from './icons/GoogleIcon';
+import { EyeIcon } from './icons/EyeIcon';
+import { EyeSlashIcon } from './icons/EyeSlashIcon';
 import { auth, googleProvider } from '../firebase';
-import { 
-    signInWithEmailAndPassword, 
-    signInWithPopup,
-    sendPasswordResetEmail,
-    signInWithPhoneNumber,
-    RecaptchaVerifier,
-    ConfirmationResult,
-    setPersistence,
-    browserLocalPersistence,
-    browserSessionPersistence
-} from 'firebase/auth';
+// FIX: Import firebase v8 namespace for types and constants.
+// FIX: Use namespace import for firebase compat app and import auth for types.
+import * as firebase from 'firebase/compat/app';
+import 'firebase/compat/auth';
 
+// FIX: Use firebase namespace for auth types.
 declare global {
     interface Window {
-        recaptchaVerifier?: RecaptchaVerifier;
-        confirmationResult?: ConfirmationResult;
+        recaptchaVerifier?: firebase.auth.RecaptchaVerifier;
+        confirmationResult?: firebase.auth.ConfirmationResult;
     }
 }
 
@@ -33,27 +31,33 @@ const SignInForm: React.FC<SignInFormProps> = ({ onSwitchToSignUp }) => {
     const [mobile, setMobile] = useState('');
     const [otp, setOtp] = useState('');
     const [rememberMe, setRememberMe] = useState(true);
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        if (isMobileOtp && !window.recaptchaVerifier) {
-            window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+        // Initialize reCAPTCHA verifier only once when the component mounts.
+        // The verifier is invisible and will be triggered by signInWithPhoneNumber.
+        if (!window.recaptchaVerifier) {
+            // FIX: Use Firebase v8 syntax for RecaptchaVerifier constructor.
+            window.recaptchaVerifier = new firebase.auth.RecaptchaVerifier('recaptcha-container-global', {
                 'size': 'invisible',
                 'callback': () => {
-                    // reCAPTCHA solved, allow signInWithPhoneNumber.
+                    // reCAPTCHA solved.
                 }
             });
         }
-    }, [isMobileOtp]);
+    }, []);
 
 
     const handleGoogleSignIn = async () => {
         setLoading(true);
         setError('');
         try {
-            await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
-            await signInWithPopup(auth, googleProvider);
+            // FIX: Use Firebase v8 syntax for setPersistence and persistence constants.
+            await auth.setPersistence(rememberMe ? firebase.auth.Auth.Persistence.LOCAL : firebase.auth.Auth.Persistence.SESSION);
+            // FIX: Use Firebase v8 syntax for signInWithPopup.
+            await auth.signInWithPopup(googleProvider);
             // onAuthStateChanged in App.tsx will handle the redirect
         } catch (err: any) {
             setError(err.message);
@@ -67,14 +71,16 @@ const SignInForm: React.FC<SignInFormProps> = ({ onSwitchToSignUp }) => {
         setError('');
 
         try {
-            await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+            // FIX: Use Firebase v8 syntax for setPersistence and persistence constants.
+            await auth.setPersistence(rememberMe ? firebase.auth.Auth.Persistence.LOCAL : firebase.auth.Auth.Persistence.SESSION);
             if (isMobileOtp) {
                 if (!window.confirmationResult) {
                     throw new Error("OTP not sent yet or session expired.");
                 }
                 await window.confirmationResult.confirm(otp);
             } else {
-                await signInWithEmailAndPassword(auth, email, password);
+                // FIX: Use Firebase v8 syntax for signInWithEmailAndPassword.
+                await auth.signInWithEmailAndPassword(email, password);
             }
             // onAuthStateChanged in App.tsx will handle the rest
         } catch (err: any) {
@@ -91,25 +97,33 @@ const SignInForm: React.FC<SignInFormProps> = ({ onSwitchToSignUp }) => {
         setLoading(true);
         setError('');
         try {
-            if (window.recaptchaVerifier) {
-                const digits = mobile.replace(/\D/g, '');
-                const last10 = digits.slice(-10);
-
-                if (last10.length !== 10) {
-                    setError("Please enter a valid 10-digit mobile number.");
-                    setLoading(false);
-                    return;
-                }
-
-                const confirmationResult = await signInWithPhoneNumber(auth, `+91${last10}`, window.recaptchaVerifier);
-                window.confirmationResult = confirmationResult;
-                setOtpSent(true);
-                alert('OTP sent to your mobile number!');
+            const verifier = window.recaptchaVerifier;
+            if (!verifier) {
+                throw new Error("reCAPTCHA verifier not initialized. Please refresh the page.");
             }
+            
+            const digits = mobile.replace(/\D/g, '');
+            const last10 = digits.slice(-10);
+
+            if (last10.length !== 10) {
+                setError("Please enter a valid 10-digit mobile number.");
+                setLoading(false);
+                return;
+            }
+
+            // FIX: Use Firebase v8 syntax for signInWithPhoneNumber.
+            const confirmationResult = await auth.signInWithPhoneNumber(`+91${last10}`, verifier);
+            window.confirmationResult = confirmationResult;
+            setOtpSent(true);
+            alert('OTP sent to your mobile number!');
+
         } catch (err: any) {
             let errorMessage = err.message;
             if (err.code === 'auth/internal-error') {
                 errorMessage = "Could not send OTP. Please ensure Phone Number sign-in is enabled in your Firebase project's settings.";
+            }
+            if (err.message.includes("auth/invalid-phone-number")) {
+                errorMessage = "The phone number is not valid. Please enter a valid 10-digit number."
             }
             setError(errorMessage);
             // This can happen if reCAPTCHA is not resolved.
@@ -122,7 +136,8 @@ const SignInForm: React.FC<SignInFormProps> = ({ onSwitchToSignUp }) => {
         const userEmail = prompt("Please enter your email to receive a password reset link:");
         if (userEmail) {
             try {
-                await sendPasswordResetEmail(auth, userEmail);
+                // FIX: Use Firebase v8 syntax for sendPasswordResetEmail.
+                await auth.sendPasswordResetEmail(userEmail);
                 alert("Password reset email sent! Please check your inbox.");
             } catch (err: any) {
                 alert("Error sending password reset email: " + err.message);
@@ -152,19 +167,34 @@ const SignInForm: React.FC<SignInFormProps> = ({ onSwitchToSignUp }) => {
                 <>
                     <div className="flex items-center bg-gray-100 w-full p-0 my-2 rounded-lg">
                         <span className="text-gray-500 pl-3">+91</span>
-                        <input className="bg-transparent w-full p-3 focus:outline-none" type="tel" placeholder="Mobile Number" value={mobile} onChange={e => setMobile(e.target.value)} required />
+                        <input className="bg-transparent w-full p-3 focus:outline-none text-gray-800 placeholder:text-gray-500" type="tel" placeholder="Mobile Number" value={mobile} onChange={e => setMobile(e.target.value)} required />
                     </div>
-                    {otpSent && <input className="bg-gray-100 w-full p-3 my-2 rounded-lg" type="text" placeholder="Enter OTP" value={otp} onChange={e => setOtp(e.target.value)} required />}
+                    {otpSent && <input className="bg-gray-100 w-full p-3 my-2 rounded-lg text-gray-800 placeholder:text-gray-500" type="text" placeholder="Enter OTP" value={otp} onChange={e => setOtp(e.target.value)} required />}
                     {!otpSent && <button type="button" onClick={handleSendOtp} disabled={loading} className="w-full mt-2 py-3 bg-gray-700 text-white rounded-lg font-semibold uppercase hover:bg-gray-800 disabled:opacity-50">Send OTP</button>}
                 </>
             ) : (
                 <>
-                    <input className="bg-gray-100 w-full p-3 my-2 rounded-lg" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
-                    <input className="bg-gray-100 w-full p-3 my-2 rounded-lg" type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required />
+                    <input className="bg-gray-100 w-full p-3 my-2 rounded-lg text-gray-800 placeholder:text-gray-500" type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required />
+                    <div className="relative w-full my-2">
+                        <input 
+                            className="bg-gray-100 w-full p-3 rounded-lg text-gray-800 placeholder:text-gray-500 pr-10" 
+                            type={showPassword ? 'text' : 'password'}
+                            placeholder="Password" 
+                            value={password} 
+                            onChange={e => setPassword(e.target.value)} 
+                            required 
+                        />
+                        <button 
+                            type="button" 
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700"
+                            aria-label={showPassword ? "Hide password" : "Show password"}
+                        >
+                            {showPassword ? <EyeSlashIcon className="h-5 w-5" /> : <EyeIcon className="h-5 w-5" />}
+                        </button>
+                    </div>
                 </>
             )}
-            
-            <div id="recaptcha-container"></div>
             
             <div className="flex items-center justify-between w-full my-4">
                 <label className="flex items-center text-sm text-gray-600 select-none cursor-pointer">

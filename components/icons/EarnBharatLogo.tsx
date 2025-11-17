@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 
 export const EarnBharatLogo: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
